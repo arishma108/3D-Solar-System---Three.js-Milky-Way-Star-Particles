@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Solar System - Three.js | Milky Way & Star Particles</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            font-size: 14px;
+            letter-spacing: 1px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            border-left: 3px solid #ffaa44;
+        }
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255,255,255,0.6);
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            font-family: monospace;
+        }
+        @media (max-width: 600px) {
+            #info { font-size: 10px; top: 10px; left: 10px; }
+            #controls-hint { font-size: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        ✨ 3D Solar System | Milky Way Background | Star Particles
+    </div>
+    <div id="controls-hint">
+        🖱️ Drag to rotate | Right-click drag to pan | Scroll to zoom
+    </div>
+
+    <!-- Import Three.js core and add-ons from CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        
+        // --- Setup Scene, Camera, Renderer ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010118); // deep space color
+        scene.fog = new THREE.FogExp2(0x010118, 0.0003); // subtle fog for depth
+
+        // Camera: PerspectiveCamera(fov, aspect, near, far)
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 20, 45);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Post Processing Bloom for extra glow on sun and stars ---
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.3, 0.2);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 0.6;
+        bloomPass.radius = 0.5;
+        const effectComposer = new EffectComposer(renderer);
+        effectComposer.addPass(renderScene);
+        effectComposer.addPass(bloomPass);
+
+        // --- Controls for interactivity ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;      // inertial movement
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 0.5;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        controls.autoRotate = false;
+        controls.target.set(0, 0, 0);
+        
+        // --- Helper: Add a star particle system (dense starfield with slight color variation) ---
+        function createStarParticles() {
+            const vertices = [];
+            const colors = [];
+            const count = 8000;
+            // Spread stars in a large sphere but concentrated around the galactic plane for realism
+            for (let i = 0; i < count; i++) {
+                // Use spherical coordinates with bias to create slight disc-like distribution + randomness
+                const radius = 300 + Math.random() * 400; // range 300-700 units
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                // Flatten distribution slightly to mimic milky way disc (more stars near equator)
+                let adjustedPhi = phi;
+                if (Math.random() > 0.6) {
+                    // bias toward equatorial plane
+                    adjustedPhi = Math.acos((Math.random() - 0.5) * 1.6);
+                }
+                const x = radius * Math.sin(adjustedPhi) * Math.cos(theta);
+                const y = radius * Math.sin(adjustedPhi) * Math.sin(theta) * 0.4; // flatten vertical axis
+                const z = radius * Math.cos(adjustedPhi);
+                
+                vertices.push(x, y, z);
+                
+                // Colors: mostly white with slight tints of blue, orange, red
+                const colorChoice = Math.random();
+                let r = 1, g = 1, b = 1;
+                if (colorChoice < 0.7) {
+                    r = 0.9 + Math.random() * 0.3;
+                    g = 0.8 + Math.random() * 0.4;
+                    b = 0.7 + Math.random() * 0.5;
+                } else if (colorChoice < 0.85) {
+                    // blueish
+                    r = 0.5 + Math.random() * 0.3;
+                    g = 0.6 + Math.random() * 0.4;
+                    b = 1.0;
+                } else {
+                    // reddish
+                    r = 1.0;
+                    g = 0.5 + Math.random() * 0.3;
+                    b = 0.5 + Math.random() * 0.3;
+                }
+                // Add slight random variation
+                r += (Math.random() - 0.5) * 0.2;
+                g += (Math.random() - 0.5) * 0.2;
+                b += (Math.random() - 0.5) * 0.2;
+                colors.push(r, g, b);
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+            
+            const material = new THREE.PointsMaterial({ size: 0.35, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+            const stars = new THREE.Points(geometry, material);
+            scene.add(stars);
+            return stars;
+        }
+        
+        // --- Milky Way Galaxy Background: create a large textured disc or particle spiral? 
+        // For performance & aesthetics: a semi-transparent rotating disc with a custom texture (procedural or loaded)
+        // Since external image not guaranteed, we create a procedural canvas texture for milky way look.
+        function createMilkyWayDisc() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw spiral galaxy effect
+            const centerX = canvas.width/2, centerY = canvas.height/2;
+            const maxRadius = canvas.width/2;
+            
+            // Radial gradient for core glow
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+            gradient.addColorStop(0, 'rgba(255, 230, 180, 0.9)');
+            gradient.addColorStop(0.15, 'rgba(255, 200, 120, 0.7)');
+            gradient.addColorStop(0.3, 'rgba(180, 130, 80, 0.5)');
+            gradient.addColorStop(0.6, 'rgba(80, 60, 100, 0.3)');
+            gradient.addColorStop(0.8, 'rgba(40, 30, 60, 0.15)');
+            gradient.addColorStop(1, 'rgba(10, 10, 25, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw spiral arms using arcs with particles effect
+            ctx.globalCompositeOperation = 'lighter';
+            for (let arm = 0; arm < 4; arm++) {
+                const angleOffset = (arm / 4) * Math.PI * 2;
+                for (let r = 50; r < maxRadius - 20; r += 12) {
+                    const spiralAngle = angleOffset + (r / 80) * 1.2;
+                    const x = centerX + Math.cos(spiralAngle) * r;
+                    const y = centerY + Math.sin(spiralAngle) * r;
+                    const intensity = 1 - (r / maxRadius);
+                    const radiusGlow = 3 + (Math.random() * 5);
+                    ctx.beginPath();
+                    ctx.arc(x, y, radiusGlow, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 210, 150, ${0.2 * intensity + 0.05})`;
+                    ctx.fill();
+                }
+            }
+            // Add many small star-like dots
+            for (let i = 0; i < 3000; i++) {
+                const rad = Math.random() * maxRadius;
+                const angle = Math.random() * Math.PI * 2;
+                const x = centerX + Math.cos(angle) * rad;
+                const y = centerY + Math.sin(angle) * rad;
+                const size = Math.random() * 2;
+                const alpha = Math.random() * 0.5 + 0.1;
+                ctx.fillStyle = `rgba(255, 220, 170, ${alpha})`;
+                ctx.fillRect(x, y, size, size);
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            // Create a large transparent plane facing the camera in a strategic orientation? Better: A sphere with texture inside? But easier: large rotating disc behind solar system
+            const discGeometry = new THREE.CylinderGeometry(180, 180, 2, 64, 64);
+            const discMaterial = new THREE.MeshStandardMaterial({
+                map: texture,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.45,
+                emissive: new THREE.Color(0x332a1f),
+                emissiveIntensity: 0.3,
+                depthWrite: false
+            });
+            const milkyWayDisc = new THREE.Mesh(discGeometry, discMaterial);
+            milkyWayDisc.position.y = -15;
+            milkyWayDisc.rotation.x = Math.PI / 2.3;
+            milkyWayDisc.rotation.z = 0.5;
+            scene.add(milkyWayDisc);
+            
+            // Extra dust particles around milky way for more depth
+            const dustCount = 2500;
+            const dustGeo = new THREE.BufferGeometry();
+            const dustPositions = [];
+            for (let i = 0; i < dustCount; i++) {
+                const rad = 150 + Math.random() * 80;
+                const ang = Math.random() * Math.PI * 2;
+                const x = Math.cos(ang) * rad;
+                const z = Math.sin(ang) * rad;
+                const y = (Math.random() - 0.5) * 12;
+                dustPositions.push(x, y, z);
+            }
+            dustGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dustPositions), 3));
+            const dustMat = new THREE.PointsMaterial({ color: 0xa57c5c, size: 0.18, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+            const dustCloud = new THREE.Points(dustGeo, dustMat);
+            scene.add(dustCloud);
+            
+            return { milkyWayDisc, dustCloud };
+        }
+        
+        // --- Create Sun light source and sphere ---
+        // Ambient light for some fill
+        const ambientLight = new THREE.AmbientLight(0x111111);
+        scene.add(ambientLight);
+        
+        // Sun light (point light)
+        const sunLight = new THREE.PointLight(0xffcc88, 2.5, 150);
+        sunLight.position.set(0, 0, 0);
+        scene.add(sunLight);
+        
+        // Additional directional light to enhance planet details
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        fillLight.position.set(1, 2, 1);
+        scene.add(fillLight);
+        
+        // Sun Mesh
+        const sunGeometry = new THREE.SphereGeometry(2.8, 128, 128);
+        const sunMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffaa55,
+            emissive: 0xff4411,
+            emissiveIntensity: 1.2,
+            metalness: 0.1,
+            roughness: 0.5
+        });
+        const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sunMesh);
+        
+        // Glow effect using a slightly larger transparent sphere with additive blending
+        const glowGeometry = new THREE.SphereGeometry(3.0, 32, 32);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff8844,
+            transparent: true,
+            opacity: 0.2,
+            blending: THREE.AdditiveBlending
+        });
+        const sunGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+        scene.add(sunGlow);
+        
+        // --- Planets data: name, radius, distance, color, speed (radians per frame factor) ---
+        const planetsData = [
+            { name: 'Mercury', radius: 0.32, distance: 4.8, color: 0xbc9a6c, speed: 0.025, roughness: 0.7, metalness: 0.1 },
+            { name: 'Venus',   radius: 0.45, distance: 6.5, color: 0xe6b856, speed: 0.018, roughness: 0.6, metalness: 0.1 },
+            { name: 'Earth',   radius: 0.48, distance: 8.2, color: 0x4dabf7, speed: 0.015, roughness: 0.5, metalness: 0.2 },
+            { name: 'Mars',    radius: 0.42, distance: 10.0, color: 0xd1663a, speed: 0.012, roughness: 0.7, metalness: 0.1 },
+            { name: 'Jupiter', radius: 1.1,  distance: 14.5, color: 0xd8a27a, speed: 0.007, roughness: 0.6, metalness: 0.2 },
+            { name: 'Saturn',  radius: 0.95, distance: 17.8, color: 0xe8cfb0, speed: 0.0055, roughness: 0.6, metalness: 0.2, hasRing: true },
+            { name: 'Uranus',  radius: 0.75, distance: 21.2, color: 0xc2e0f0, speed: 0.004, roughness: 0.5, metalness: 0.3 },
+            { name: 'Neptune', radius: 0.74, distance: 24.5, color: 0x4169e1, speed: 0.0032, roughness: 0.5, metalness: 0.3 }
+        ];
+        
+        const planets = [];
+        const orbits = [];
+        
+        // Helper to create orbit line
+        function createOrbit(radius, color = 0x88aaff) {
+            const points = [];
+            const segments = 128;
+            const angleStep = (Math.PI * 2) / segments;
+            for (let i = 0; i <= segments; i++) {
+                const angle = i * angleStep;
+                const x = radius * Math.cos(angle);
+                const z = radius * Math.sin(angle);
+                points.push(new THREE.Vector3(x, 0, z));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.35 });
+            const orbitLine = new THREE.LineLoop(geometry, material);
+            scene.add(orbitLine);
+            return orbitLine;
+        }
+        
+        // Create planets and store their angles
+        planetsData.forEach((data, idx) => {
+            const geometry = new THREE.SphereGeometry(data.radius, 64, 64);
+            const material = new THREE.MeshStandardMaterial({
+                color: data.color,
+                roughness: data.roughness,
+                metalness: data.metalness,
+                emissive: 0x000000
+            });
+            const planet = new THREE.Mesh(geometry, material);
+            // Initial position at distance on X axis
+            planet.userData = {
+                distance: data.distance,
+                speed: data.speed,
+                angle: Math.random() * Math.PI * 2,
+                name: data.name
+            };
+            scene.add(planet);
+            
+            // Add ring for Saturn
+            if (data.hasRing) {
+                const ringGeo = new THREE.TorusGeometry(data.radius * 1.25, 0.28, 32, 100);
+                const ringMat = new THREE.MeshStandardMaterial({ color: 0xcbb994, emissive: 0x332200, roughness: 0.4, metalness: 0.7 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2.2;
+                ring.rotation.z = 0.3;
+                planet.add(ring);
+            }
+            
+            planets.push(planet);
+            // Create orbit circle
+            const orbitColor = 0x7799cc;
+            createOrbit(data.distance, orbitColor);
+        });
+        
+        // Add a few random asteroids belt effect between Mars and Jupiter (optional)
+        const asteroidCount = 1800;
+        const asteroidGeo = new THREE.BufferGeometry();
+        const asteroidPositions = [];
+        for (let i = 0; i < asteroidCount; i++) {
+            const r = 11 + Math.random() * 2.5;
+            const angle = Math.random() * Math.PI * 2;
+            const yOff = (Math.random() - 0.5) * 1.2;
+            const x = Math.cos(angle) * r;
+            const z = Math.sin(angle) * r;
+            asteroidPositions.push(x, yOff, z);
+        }
+        asteroidGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(asteroidPositions), 3));
+        const asteroidMat = new THREE.PointsMaterial({ color: 0xaa8866, size: 0.08, transparent: true });
+        const asteroidField = new THREE.Points(asteroidGeo, asteroidMat);
+        scene.add(asteroidField);
+        
+        // --- Create star particles (distant stars) ---
+        const starField = createStarParticles();
+        
+        // --- Milky Way main disc and dust ---
+        const { milkyWayDisc, dustCloud } = createMilkyWayDisc();
+        
+        // --- Additional distant very faint fog stars for depth: extra particle layer ---
+        const extraStarsCount = 4000;
+        const extraStarGeo = new THREE.BufferGeometry();
+        const extraPositions = [];
+        for (let i = 0; i < extraStarsCount; i++) {
+            // spread in a larger sphere
+            const rad = 500 + Math.random() * 400;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const x = rad * Math.sin(phi) * Math.cos(theta);
+            const y = rad * Math.sin(phi) * Math.sin(theta) * 0.6;
+            const z = rad * Math.cos(phi);
+            extraPositions.push(x, y, z);
+        }
+        extraStarGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(extraPositions), 3));
+        const extraStarMat = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.22, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
+        const extraStars = new THREE.Points(extraStarGeo, extraStarMat);
+        scene.add(extraStars);
+        
+        // --- Optional: small particle ring to enhance Milky Way glow (tiny stars around plane) ---
+        const milkyStarsCount = 2000;
+        const milkyStarsGeo = new THREE.BufferGeometry();
+        const milkyPos = [];
+        for (let i = 0; i < milkyStarsCount; i++) {
+            const rad = 140 + Math.random() * 70;
+            const ang = Math.random() * Math.PI * 2;
+            const x = Math.cos(ang) * rad;
+            const z = Math.sin(ang) * rad;
+            const y = (Math.random() - 0.5) * 10;
+            milkyPos.push(x, y, z);
+        }
+        milkyStarsGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(milkyPos), 3));
+        const milkyStarsMat = new THREE.PointsMaterial({ color: 0xffccaa, size: 0.16, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+        const milkyStarsField = new THREE.Points(milkyStarsGeo, milkyStarsMat);
+        scene.add(milkyStarsField);
+        
+        // --- Animation variables ---
+        let time = 0;
+        
+        // Add subtle pulsation for sun
+        let pulseDir = 0.005;
+        let sunScale = 1;
+        
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            time += 0.016; // roughly per frame, but speed independent
+            
+            // Update planet positions based on their speed
+            planets.forEach(planet => {
+                const data = planet.userData;
+                data.angle += data.speed * 0.6; // speed factor for nice visual rhythm
+                if (data.angle > Math.PI * 2) data.angle -= Math.PI * 2;
+                const x = Math.cos(data.angle) * data.distance;
+                const z = Math.sin(data.angle) * data.distance;
+                planet.position.set(x, 0, z);
+            });
+            
+            // Animate Sun pulsation and glow
+            sunScale += pulseDir;
+            if (sunScale >= 1.05) pulseDir = -0.003;
+            if (sunScale <= 0.98) pulseDir = 0.003;
+            sunMesh.scale.set(sunScale, sunScale, sunScale);
+            sunGlow.scale.set(sunScale + 0.05, sunScale + 0.05, sunScale + 0.05);
+            
+            // Rotate Milky Way disc and dust for subtle motion
+            milkyWayDisc.rotation.z += 0.0008;
+            milkyWayDisc.rotation.x = Math.PI / 2.3 + Math.sin(time * 0.05) * 0.02;
+            if (dustCloud) dustCloud.rotation.y += 0.0003;
+            milkyStarsField.rotation.y += 0.0002;
+            asteroidField.rotation.y += 0.002;
+            extraStars.rotation.y -= 0.0001;
+            starField.rotation.y += 0.00005;
+            
+            // Rotate starfield to give sense of movement
+            starField.rotation.x += 0.0001;
+            
+            // Update camera controls
+            controls.update(); // only needed if damping or autoRotate, but we call for smoothness
+            
+            // Render via effect composer for bloom
+            effectComposer.render();
+        }
+        
+        // Start animation
+        animate();
+        
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Small console log
+        console.log('3D Solar System with Milky Way and Star Particles Loaded');
+    </script>
+</body>
+</html>
